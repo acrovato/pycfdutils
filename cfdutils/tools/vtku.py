@@ -24,16 +24,23 @@ class Reader:
             self.reader = vtk.vtkTecplotReader()
         elif fmt == 'vtk':
             self.reader = vtk.vtkUnstructuredGridReader()
+            self.reader.ReadAllScalarsOn()
+            self.reader.ReadAllVectorsOn()
+            self.reader.ReadAllTensorsOn()
+            self.reader.ReadAllFieldsOn()
+        elif fmt == 'vtu':
+            self.reader = vtk.vtkXMLUnstructuredGridReader()
         else:
             raise Exception('Reader for format ' + fmt + ' not implemented!\n')
         # Open file
         if not os.path.isfile(fname+'.'+fmt):
-            raise Exception('file ' + fname + '.' + fmt + ' not found!\n')
+            raise Exception('file ' + os.path.realpath(fname + '.' + fmt) + ' not found!\n')
         self.reader.SetFileName(fname+'.'+fmt)
         self.reader.Update()
+        #Get grid data
         if fmt == 'dat':
             self.grid = self.reader.GetOutput().GetBlock(0)
-        elif fmt == 'vtk':
+        elif fmt == 'vtk' or fmt == 'vtu':
             self.grid = self.reader.GetOutput()
 
 class Cutter:
@@ -42,8 +49,7 @@ class Cutter:
         self.slice = None
 
     def cut(self, cutO, cutN, tag=None, tag_name=None):
-        '''
-        Cut the physical group ided "tag" with a plane defined by point "cutO" and normal "cutN"
+        '''Cut the physical group ided "tag" with a plane defined by point "cutO" and normal "cutN"
         '''
         # create a threshold containing the physical group (numbered "tag", called "tag_name") to cut
         if tag:
@@ -63,13 +69,11 @@ class Cutter:
             cutter.SetInputDataObject(thresh.GetOutput()) #cutter.SetInputConnection(thresh.GetOutputPort())
         else:
             cutter.SetInputDataObject(self.grid) #cutter.SetInputConnection(self.grid)
-            
         cutter.Update()
         self.slice = cutter.GetOutput()
 
     def extract(self, tagDim, vname, atPoint = True, sorted = True):
-        '''
-        Extract points "pts", connectivity list "elems" and data "vals" named "vname" from cutting plane data self.slice
+        '''Extract points "pts", connectivity list "elems" and data "vals" named "vname" from cutting plane data self.slice
         The physical group dimension is given by "tagDim" and "atPoint" is True if vname is defined at points.
         '''
         import numpy as np
@@ -122,18 +126,12 @@ class Cutter:
         # sort id vector
         elems = elems[elems[:,0].argsort(),:]
         # sort data against elems
-        _max = np.argmax(data[:,0])
-        pts[0,:] = data[_max,:3]
-        col = 3
-        for val in vals.values():
-            val[0,:] = data[_max,col:col+val.shape[1]]
-            col = col + val.shape[1]
-        nextId = 1
-        for i in range(1, elems.shape[0]):
+        nextId = 0
+        for i in range(0, elems.shape[0]):
             pts[i,:] = data[elems[nextId,1],:3]
             col = 3
             for val in vals.values():
-                val[i,:] = data[i,col:col+val.shape[1]]
+                val[i,:] = data[elems[nextId,1],col:col+val.shape[1]]
                 col = col + val.shape[1]
             nextId = elems[nextId,1]
         return pts, elems, vals

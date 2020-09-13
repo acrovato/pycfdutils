@@ -35,10 +35,11 @@ def setup():
     if not os.path.isfile(fpath):
         raise Exception('file not found: ', fpath)
     # create workspace directory
-    wdir = os.path.join(os.getcwd(), 'workspace')
+    wdir = os.path.join(os.getcwd(), 'workspace', os.path.basename(os.path.realpath(fpath))[:-3])
     if not os.path.isdir(wdir):
         print('creating', wdir)
         os.makedirs(wdir)
+    print('changing to workspace: ', wdir)
     os.chdir(wdir)
     return fpath
 

@@ -3,7 +3,7 @@
 
 # Aerodynamic loads
 # Adrien Crovato
-# TODO check the integration direction to avoid sign reversal
+# TODO check Cd sign, might be inverted
 
 class Loads:
     def __init__(self):
@@ -12,7 +12,7 @@ class Loads:
         self.data = {} # coordinates and pressure coefficient
         self.cls = [] # lift
         self.cms = [] # moment positive nose-up (clockwise)
-        self.cds = [] # drag
+        self.cds = [] # pressure drag
     
     def add(self, y, pts, cp):
         '''Add data for a section along the span
@@ -41,11 +41,11 @@ class Loads:
             cx = 0
             cm = 0 
             while i < (x.shape[0]-1):
-                dx = -(x[i+1] - x[i]) / c
+                dx = (x[i+1] - x[i]) / c
                 dz = -(z[i+1] - z[i]) / c
-                cz -= 0.5 * dx * (cp[i+1] + cp[i])
-                cx -= 0.5 * dz * (cp[i+1] + cp[i])
-                cm += 0.5*(cp[i+1]*(x[i+1]-c_4) + cp[i]*(x[i]-c_4)) * dx/c + 0.5*(cp[i+1]*z[i+1] + cp[i]*z[i]) * dz/c
+                cz += 0.5 * dx * (cp[i+1] + cp[i])
+                cx += 0.5 * dz * (cp[i+1] + cp[i])
+                cm -= -0.5*(cp[i+1]*(x[i+1]-c_4) + cp[i]*(x[i]-c_4)) * dx/c + 0.5*(cp[i+1]*z[i+1] + cp[i]*z[i]) * dz/c # positive nose-up (clockwise)
                 i = i+1
             # rotate to flow direction
             cl = cz*np.cos(alpha) - cx*np.sin(alpha)
@@ -71,6 +71,6 @@ class Loads:
             print('writing pressure data file in workspace directory: slice_' + str(j) + '.dat...')
             np.savetxt('slice_'+str(j)+'.dat', self.data[j], fmt='%1.5e', delimiter=',', header='x, y, z, x/c, Cp @ y='+str(self.ys[j]), comments='')
         # loads
-        loads = np.hstack((self.ys, self.cls, self.cms, self.cds))
+        loads = np.transpose(np.vstack((self.ys, self.cls, self.cms, self.cds)))
         print('writing loads data file in workspace directory: loads.dat...')
         np.savetxt('loads.dat', loads, fmt='%1.5e', delimiter=',', header='y, Cl, Cm, Cd', comments='')
