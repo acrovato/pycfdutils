@@ -28,7 +28,7 @@ def inputs():
     p['Cuts'] = [0.01, 0.24, 0.53, 0.78, 0.96, 1.08, 1.14, 1.18] # y-coordinates of the slices
     p['Tag'] = [None, None] # tag number and name if the solution is provided not only on the wing surface
     p['Variable'] = 'Pressure_Coefficient' # name of variable to extract
-    p['AoA'] = 3.06 # angle of attack
+    p['AoA'] = 3.06 # angle of attack (degrees)
     return p
     
 def cLoads(p):
@@ -49,6 +49,7 @@ def cLoads(p):
     # Compute loads
     loads.compute(p['AoA'])
     loads.display()
+    loads.plot()
     loads.write()
     
 def mkchdirexec(dirname, p):

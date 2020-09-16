@@ -3,7 +3,6 @@
 
 # Aerodynamic loads
 # Adrien Crovato
-# TODO check Cd sign, might be inverted
 
 class Loads:
     def __init__(self):
@@ -29,6 +28,7 @@ class Loads:
         '''Compute the sectional aerodynamic load coefficients
         '''
         import numpy as np
+        alpha = np.deg2rad(alpha)
         for j in range(0, len(self.ys)):
             x = self.data[j][:,0]
             z = self.data[j][:,2]
@@ -43,8 +43,8 @@ class Loads:
             while i < (x.shape[0]-1):
                 dx = (x[i+1] - x[i]) / c
                 dz = -(z[i+1] - z[i]) / c
-                cz += 0.5 * dx * (cp[i+1] + cp[i])
-                cx += 0.5 * dz * (cp[i+1] + cp[i])
+                cz -= 0.5 * dx * (cp[i+1] + cp[i])
+                cx -= 0.5 * dz * (cp[i+1] + cp[i])
                 cm -= -0.5*(cp[i+1]*(x[i+1]-c_4) + cp[i]*(x[i]-c_4)) * dx/c + 0.5*(cp[i+1]*z[i+1] + cp[i]*z[i]) * dz/c # positive nose-up (clockwise)
                 i = i+1
             # rotate to flow direction
@@ -62,6 +62,36 @@ class Loads:
         print('Cm = ', self.cms)
         print('Cd = ', self.cds)
     
+    def plot(self):
+        '''Plot the sectional pressure and loads
+        '''
+        import matplotlib.pyplot as plt
+        # Pressure
+        fig, ax = plt.subplots()
+        ax.set_xlabel('x/c')
+        ax.set_ylabel('Cp')
+        ax.invert_yaxis()
+        for i in range(0, len(self.ys)):
+            ax.plot(self.data[i][:,3], self.data[i][:,4], label = 'y = '+str(self.ys[i]))
+        ax.legend()
+        plt.draw()
+        # Loads
+        fig, ax1 = plt.subplots()
+        # left axis
+        color = 'tab:blue'
+        ax1.set_xlabel('y')
+        ax1.set_ylabel('Cl', color=color)
+        ax1.plot(self.ys, self.cls, color=color)
+        ax1.tick_params(axis='y', labelcolor=color)
+        # right axis
+        ax2 = ax1.twinx()
+        color = 'tab:red'
+        ax2.set_ylabel('Cm', color=color)
+        ax2.plot(self.ys, self.cms, color=color)
+        ax2.tick_params(axis='y', labelcolor=color)
+        fig.tight_layout()  # otherwise the right y-label is slightly clipped
+        plt.show()
+
     def write(self):
         '''Write to disk
         '''
