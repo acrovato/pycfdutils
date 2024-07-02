@@ -1,4 +1,4 @@
-# pycfdutils
+# pyCFDutils
 Python CFD post-processing utilities  
 Adrien Crovato, 2020
 
@@ -12,39 +12,38 @@ pycfdutils can be used to:
 
 ## Requirements
 pycfdutils needs
-- python 3 interpreter and libraries
+- Python 3 interpreter and libraries
 - numpy and vtk packages
 - matplotlib package (optional)
 
-## Usage
-Create a Python script calling the different utilities that you need in your working directory. Examples are given under the directory [examples](cfdutils/examples/). Run the computation by calling `run.py path/to/your_script.py`. Output files will be saved in your current working directory under a `workspace` directory.
+## Install and run
+If you only want to use pyCFDutils, you can install it using
+```python
+python3 -m pip install . [--user]
+```
+and then run a case using
+```python
+python3 path/to/case.py
+```
 
-**Known bugs**  
-- The sign of the sectional aerodynamic drag coefficient might be inverted
+If you need to develop in pyCFDutils before using it, and you can directly run your case from the repo folder using
+```python
+python3 run.py path/to/case.py
+```
 
 ## Documentation
-The different utilities are loacated under the directory [tools](cfdutils/tools/). Three classes are currently implemented.
+The documentation is written in the classes/methods signature. The main features are listed here for convenience.
 
-**vtku.Reader**  
-- `reader`: return the vtk reader used to open and read the data
-- `grid`: return the (unstructured grid) data
-- `open(fname, fmt)`: read the file `fname.fmt`
+### vtk_utils.Reader
+- `open(fname)`: read the file `fname`
 
-**vtku.Cutter**  
-- `grid`: return the (unstructured grid) data
-- `slice`: return the data contained in the slice
-- `cut(self, cutO, cutN, tag=None, tag_name=None)`: perform a slice using the plane defined by the point `cutO` and the normal `cutN`. If a tag number `tag` and name `tag_name` are provided, the slice is performed on the group defined by those parameters, otherwise the slice is performed on the grid directly
-- `pts, elems, vals = extract(self, tagDim, vname, atPoint = True, sorted = True)`: returns the coordinates of the points (`pts`), the list of connectivity (`elems`) and the data (`vals`) named `vname` contained in the current `slice` of dimension `tagDim`. `atPoint` inidcates that the data are defined at the points (as opposed to: defined at the cells center). In the former case, `sorted` can be used to sort the data against the list of connectivity.
+### vtk_utils.Cutter
+- `cut(cut_orig, cut_norm, tag_name=None, tag_id=None)`: create a cutplane defined by the point `cut_orig` and the normal `cut_norm`. If a tag name `tag_name` and number `tag_id` are provided, the slice is performed on the group defined by those parameters, otherwise the slice is performed on the grid directly.
+- `pts, elems, vals = extract(var_names, tag_dim, at_point=True, sort=True)`: returns the coordinates of the points (`pts`), the list of connectivity (`elems`) and the data (`vals`) named `var_names` contained in the current cutplane of dimension `tag_dim`. `atPoint` inidcates that the data are defined at the points (as opposed to: defined at the cells center). In the former case, `sort` can be used to sort the data against the list of connectivity.
 
-**loads.Loads**  
-- `ys`: return the y-coordinate of the stations
-- `chds`: return the chord of the stations
-- `data`: return the x, y and z-coordinates and the chordwise sectional pressure coefficient of the stations
-- `cls`: return the sectional lift coefficient of the stations
-- `cms`: return the sectional moment coefficient of the stations
-- `cds`: return the sectional drag coefficient of the stations
-- `add(y, pts, cp)`: add slice data consisting of chordwise x, y and z-coordinates (pts) and pressure coefficient (cp) defined at y-coordinate `y`
-- `compute(alpha = 0)`: compute sectional aerodynamic load coefficients at angle of attack `alpha` degrees
-- `display()`: print the loads on output
-- `plot()`: plot the loads
-- `write()`: save the loads to disk
+### cross_sections.CrossSections 
+- `add_section(y, xz, cp)`: add data from a cutplane defined at y-coordinate `y` consisting of x and z-coordinates (`xz`) and pressure coefficient (`cp`).
+- `compute_loads(aoa=0)`: compute sectional aerodynamic load coefficients at angle of attack `aoa` degrees.
+- `display()`: print the loads on console.
+- `plot()`: plot the loads.
+- `write()`: save the loads to disk.
