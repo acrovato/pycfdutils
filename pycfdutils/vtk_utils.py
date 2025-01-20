@@ -82,7 +82,7 @@ class Cutter:
         self.grid = grid
         self.slice = None
 
-    def cut(self, cut_orig, cut_norm, tag_name=None, tag_id=None):
+    def cut(self, cut_orig, cut_norm, tag_name=None, tag_id=None, to_points=True):
         """Create a cutplane on the grid or on a subset of it
 
         Parameters:
@@ -94,6 +94,8 @@ class Cutter:
             name of variable to create threshold on (default: None)
         tag_id: int
             ID number to threshold (default: None)
+        to_points: bool
+            whether cell data must be interpolated at points or not (default: True)
         """
         # Create a threshold containing the physical group to cut
         if tag_name:
@@ -116,8 +118,14 @@ class Cutter:
             cutter.SetInputDataObject(self.grid)
         cutter.Update()
         self.slice = cutter.GetOutput()
+        # Interpolate data at points
+        if to_points and self.slice.GetCellData().GetNumberOfArrays() > 0:
+            xfer = vtk.vtkCellDataToPointData()
+            xfer.SetInputData(self.slice)
+            xfer.Update()
+            self.slice = xfer.GetOutput()
 
-    def extract(self, var_names, tag_dim, at_point=True, sort=True):
+    def extract(self, var_names, tag_dim, sort=True):
         """Extract points, connectivity list and data from cutting plane
 
         Parameters:
@@ -125,8 +133,6 @@ class Cutter:
             array of names of data to extract
         tag_dim: int
             dimension of cutted entity
-        at_point: bool
-            whether data are defined at points (True) or at cells (default: True)
         sort: bool
             whether data must be sorted or not (default: True)
         """
@@ -152,20 +158,14 @@ class Cutter:
         # Transfer variables
         vals = {}
         for name in var_names:
-            if at_point: # data at points
-                _vals = self.slice.GetPointData().GetArray(name)
-            else: # data at elements
-                _vals = self.slice.GetCellData().GetArray(name)
+            _vals = self.slice.GetPointData().GetArray(name)
             vals[name] = np.zeros((_vals.GetNumberOfTuples(), _vals.GetNumberOfComponents()))
             for i in range(0, vals[name].shape[0]):
                 for j in range(0, vals[name].shape[1]):
                     vals[name][i,j] = _vals.GetTuple(i)[j]
-        # sort the data
+        # Sort the data
         if sort:
-            if not at_point:
-                print('Sorting method not implemented for data defined at cell. Skipping sort!\n')
-            else:
-               pts, elems, vals = self.__sort(pts, elems, vals)
+            pts, elems, vals = self.__sort(pts, elems, vals)
         return pts, elems, vals
 
     def __sort(self, pts, elems, vals):
