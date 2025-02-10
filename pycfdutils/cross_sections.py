@@ -141,18 +141,18 @@ class CrossSections:
         fig.tight_layout()  # otherwise the right y-label is slightly clipped
         plt.show()
 
-    def write(self):
+    def write(self, pfx=''):
         """Write to disk
         """
         # Pressure
         for i in range(len(self.y_sec)):
-            print(f'Writing pressure data file in workspace directory: slice_{i}.dat')
+            print(f'Writing pressure data file in workspace directory: {pfx}slice_{i}.dat')
             hdr = f'y = {self.y_sec[i]}, c = {self.chords[i]}, le = {self.xz_le[i]}\n'
             hdr += '{:>9s}, {:>10s}, {:>10s}'.format('x/c', 'z/c', 'cp')
             data = np.hstack((self.xz_c[i], self.cp[i]))
-            np.savetxt(f'slice_{i}.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
+            np.savetxt(f'{pfx}slice_{i}.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
         # Loads
         hdr = '{:>9s}, {:>10s}, {:>10s}, {:>10s}'.format('y', 'cl', 'cm', 'cd')
         data = np.transpose(np.vstack((self.y_sec, self.cl, self.cm, self.cd)))
         print('Writing loads data file in workspace directory: loads.dat...')
-        np.savetxt('loads.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
+        np.savetxt(f'{pfx}loads.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
