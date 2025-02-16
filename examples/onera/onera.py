@@ -40,13 +40,13 @@ def compute_loads(cfg):
     reader.open(cfg['File'])
     # Create slices
     cutter = Cutter(reader.grid)
-    loads = CrossSections()
+    loads = CrossSections('m6', cfg['AoA'])
     for i in range(len(cfg['Cuts'])):
         cutter.cut([0., cfg['Cuts'][i], 0.], [0., 1., 0.], cfg['Tag'][0], cfg['Tag'][1])
         pts, elems, vals = cutter.extract([cfg['Variable']], 2)
         loads.add_section(cfg['Cuts'][i], pts[:, [0, 2]], vals[cfg['Variable']])
     # Compute loads
-    loads.compute_loads(cfg['AoA'])
+    loads.compute_loads()
     loads.display()
     loads.plot()
     loads.write()
