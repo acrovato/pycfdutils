@@ -82,14 +82,21 @@ class CrossSections:
         # Compute tangential friction coefficient
         cft = np.zeros((len(cp), 1))
         if cf is not None:
-            # Compute at element center
-            cfe = np.zeros(cft.shape[0] - 1)
-            for ipt in range(cft.shape[0] - 1):
-                tvec = xzc[ipt+1,:] - xzc[ipt,:] # tangent vector
-                cfe[ipt] = 0.5 * (cf[ipt+1, :] + cf[ipt, :]).dot(tvec / np.linalg.norm(tvec)) # average cf
-            # Interpolate at point
-            for ipt in range(cft.shape[0]):
-                cft[ipt] = 0.5 * (cfe[ipt - 1] + cfe[ipt])
+            if cf.shape[1] == 1:
+                cft = cf
+            elif cf.shape[1] == 2:
+                # Compute at element center
+                cfe = np.zeros(cft.shape[0])
+                for ipt in range(cft.shape[0]):
+                    tvec = xzc[(ipt + 1) % cft.shape[0],:] - xzc[ipt,:] # tangent vector
+                    if tvec[0] < 0.:
+                        tvec = -tvec # tangent always positive pointing downstream (does not work near stagnation)
+                    cfe[ipt] = 0.5 * (cf[(ipt + 1) % cft.shape[0], :] + cf[ipt, :]).dot(tvec / np.linalg.norm(tvec))
+                # Interpolate at point
+                for ipt in range(cft.shape[0]):
+                    cft[ipt] = 0.5 * (cfe[ipt - 1] + cfe[ipt])
+            else:
+                raise RuntimeError(f'CrossSections.add_section: error while computing tangential skin friction coefficient. Expecting friction array with 1 or 2 columns but {cf.shape[1]} were given.')
         # Add data
         self.y_sec.append(y)
         self.chords.append(c)
@@ -114,12 +121,9 @@ class CrossSections:
             for j in range(len(xc) - 1):
                 dx = xc[j + 1] - xc[j]
                 dz = -(zc[j + 1] - zc[j])
-                cz -= 0.5 * (dx * (cp[j + 1] + cp[j]) + dz * (cf[j + 1] + cf[j]))
-                cx -= 0.5 * (dz * (cp[j + 1] + cp[j]) + dx * (cf[j + 1] + cf[j]))
-                cm -= -0.5 * (cp[j + 1] * (xc[j + 1] - 0.25) + cp[j] * (xc[j] - 0.25)) * dx \
-                      + 0.5 * (cp[j + 1] * zc[j + 1] + cp[j] * zc[j]) * dz \
-                      -0.5 * (cf[j + 1] * zc[j + 1] + cf[j] * zc[j]) * dx \
-                      + 0.5 * (cf[j + 1] * (xc[j + 1] - 0.25) + cf[j] * (xc[j] - 0.25)) * dz
+                cz -= 0.5 * dx * (cp[j + 1] + cp[j])
+                cx -= 0.5 * dz * (cp[j + 1] + cp[j])
+                cm -= -0.5 * (cp[j + 1] * (xc[j + 1] - 0.25) + cp[j] * (xc[j] - 0.25)) * dx + 0.5 * (cp[j + 1] * zc[j + 1] + cp[j] * zc[j]) * dz
             # Rotate to flow direction
             cl = cz * np.cos(aoa) - cx * np.sin(aoa)
             cd = cz * np.sin(aoa) + cx * np.cos(aoa)
@@ -153,7 +157,6 @@ class CrossSections:
             fig, ax = plt.subplots()
             ax.set_xlabel('$x/c$')
             ax.set_ylabel('$c_f$')
-            ax.invert_yaxis()
             for i in range(len(self.y_sec)):
                 ax.plot(self.xz_c[i][:, 0], self.cf[i], label = f'y = {self.y_sec[i]}')
             ax.legend()
@@ -178,12 +181,12 @@ class CrossSections:
     def write(self):
         """Write to disk
         """
-        name = self.name + '_' if not self.name else ''
+        name = self.name + '_' if self.name else ''
         # Pressure and friction
         for i in range(len(self.y_sec)):
             print(f'Writing pressure data file in workspace directory: {name}slice_{i}.dat')
             hdr = f'y = {self.y_sec[i]}, c = {self.chords[i]}, le = {self.xz_le[i]}\n'
-            hdr += '{:>9s}, {:>10s}, {:>10s}'.format('x/c', 'z/c', 'cp', 'cf')
+            hdr += '{:>9s}, {:>10s}, {:>10s}, {:>10s}'.format('x/c', 'z/c', 'cp', 'cf')
             data = np.hstack((self.xz_c[i], self.cp[i], self.cf[i]))
             np.savetxt(f'{name}slice_{i}.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
         # Loads
