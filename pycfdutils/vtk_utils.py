@@ -82,7 +82,7 @@ class Cutter:
         self.grid = grid
         self.slice = None
 
-    def cut(self, cut_orig, cut_norm, tag_name=None, tag_id=None, to_points=True):
+    def cut(self, cut_orig, cut_norm, tag_name=None, tag_lid=None, tag_uid=None, to_points=True):
         """Create a cutplane on the grid or on a subset of it
 
         Parameters:
@@ -92,16 +92,18 @@ class Cutter:
             components of vector normal to cutplane
         tag_name: str
             name of variable to create threshold on (default: None)
-        tag_id: int
-            ID number to threshold (default: None)
+        tag_lid: int
+            lower ID number to threshold (default: None)
+        tag_uid: int
+            upper ID number to threshold (default: None)
         to_points: bool
             whether cell data must be interpolated at points or not (default: True)
         """
         # Create a threshold containing the physical group to cut
         if tag_name:
             thresh = vtk.vtkThreshold()
-            thresh.SetLowerThreshold(tag_id)
-            thresh.SetUpperThreshold(tag_id)
+            thresh.SetLowerThreshold(tag_lid)
+            thresh.SetUpperThreshold(tag_uid)
             thresh.SetInputDataObject(self.grid)
             thresh.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_CELLS, tag_name)
             thresh.Update()
@@ -112,7 +114,7 @@ class Cutter:
         # Cut the threshold or the grid and get data
         cutter = vtk.vtkCutter()
         cutter.SetCutFunction(plane)
-        if tag_id:
+        if tag_name:
             cutter.SetInputDataObject(thresh.GetOutput())
         else:
             cutter.SetInputDataObject(self.grid)
