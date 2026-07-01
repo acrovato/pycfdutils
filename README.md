@@ -8,7 +8,7 @@ MATLAB utilities available [here](https://github.com/acrovato/mcfdutils).
 pycfdutils can be used to:
 - create sectional pressure data from field or surface solution files in Tecplot ASCII, VTK ASCII or VTK binary format
 - compute the sectional aerodynamic loads
-- save the pressure data and the loads to disk
+- save the pressure, friction and the loads to disk
 
 ## Requirements
 pycfdutils needs
@@ -17,33 +17,33 @@ pycfdutils needs
 - matplotlib package (optional)
 
 ## Install and run
-If you only want to use pyCFDutils, you can install it using
+You can install pyCFDutils using
 ```python
 python3 -m pip install . [--user]
 ```
-and then run a case using
+If you want pyCFDutils to create a workspace directory automatically, run a case using
+```python
+pycfdutils-run path/to/case.py
+```
+Otherwise, you can simply run
 ```python
 python3 path/to/case.py
-```
-
-If you need to develop in pyCFDutils before using it, and you can directly run your case from the repo folder using
-```python
-python3 run.py path/to/case.py
 ```
 
 ## Documentation
 The documentation is written in the classes/methods signature. The main features are listed here for convenience.
 
 ### vtk_utils.Reader
-- `open(fname)`: read the file `fname`
+- `open(fname)`: read the file `fname`.
 
 ### vtk_utils.Cutter
-- `cut(cut_orig, cut_norm, tag_name=None, tag_id=None)`: create a cutplane defined by the point `cut_orig` and the normal `cut_norm`. If a tag name `tag_name` and number `tag_id` are provided, the slice is performed on the group defined by those parameters, otherwise the slice is performed on the grid directly.
-- `pts, elems, vals = extract(var_names, tag_dim, at_point=True, sort=True)`: returns the coordinates of the points (`pts`), the list of connectivity (`elems`) and the data (`vals`) named `var_names` contained in the current cutplane of dimension `tag_dim`. `atPoint` inidcates that the data are defined at the points (as opposed to: defined at the cells center). In the former case, `sort` can be used to sort the data against the list of connectivity.
+- `cut(cut_orig, cut_norm, tag_name=None, tag_lid=None, tag_uid=None, to_points=True)`: create a cutplane defined by the point `cut_orig` and the normal `cut_norm`. If `tag_name`, `tag_lid` and `tag_uid` are provided, the slice is performed on the group obtained by thresholding the grid using the variable `tag_name` between the values `tag_lid` and `tag_uid`. Otherwise the slice is performed on the grid directly. If `to_points=True`, the data will be interpolated from the cell centers to the grid vertices.
+- `pts, elems, vals = extract(var_names, tag_dim, sort=True)`: returns the coordinates of the points (`pts`), the list of connectivity (`elems`) and the data (`vals`) named `var_names` contained in the current cutplane of dimension `tag_dim`. If `sort=True`, the data will be sorted against the list of connectivity.
 
 ### cross_sections.CrossSections 
-- `add_section(y, xz, cp)`: add data from a cutplane defined at y-coordinate `y` consisting of x and z-coordinates (`xz`) and pressure coefficient (`cp`).
-- `compute_loads(aoa=0)`: compute sectional aerodynamic load coefficients at angle of attack `aoa` degrees.
+- `__init__(name='', aoa=0.)`: create a cross section object named `name` at an angle of attack `aoa` degrees.
+- `add_section(y, xz, cp, cf=None)`: add data from a cutplane defined at y-coordinate `y` consisting of x and z-coordinates `xz`, pressure coefficient `cp` and friction coefficient `cf`.
+- `compute_loads()`: compute sectional aerodynamic load coefficients.
 - `display()`: print the loads on console.
-- `plot()`: plot the loads.
-- `write()`: save the loads to disk.
+- `plot()`: plot the pressure, friction and loads.
+- `write()`: save the sectional data and the loads to disk.
