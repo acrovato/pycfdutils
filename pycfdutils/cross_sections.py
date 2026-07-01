@@ -73,12 +73,18 @@ class CrossSections:
         cf: ndarray (n, 2), optional
             x and z friction coefficients along the chord of cross-section
         """
+        # Rotate arrays so they start at the trailing edge
+        ite = np.argmax(xz[:, 0]) # LE index
+        xz = np.roll(xz, -ite, axis=0)
+        cp = np.roll(cp, -ite)
+        if cf is not None:
+            cf = np.roll(cf, -ite)
         # Normalize coordinates
         ile = np.argmin(xz[:, 0]) # LE index
-        c = max(xz[:, 0]) - min(xz[:, 0]) # chord length
+        c = xz[0, 0] - xz[ile, 0] # chord length
         xzc = np.zeros((xz.shape[0], 2))
-        xzc[:,0] = (xz[:,0] - xz[ile,0]) / c
-        xzc[:,1] = (xz[:,1] - xz[ile,1]) / c
+        xzc[:,0] = (xz[:, 0] - xz[ile, 0]) / c
+        xzc[:,1] = (xz[:, 1] - xz[ile, 1]) / c
         # Compute tangential friction coefficient
         cft = np.zeros((len(cp), 1))
         if cf is not None:
@@ -88,7 +94,7 @@ class CrossSections:
                 # Compute at element center
                 cfe = np.zeros(cft.shape[0])
                 for ipt in range(cft.shape[0]):
-                    tvec = xzc[(ipt + 1) % cft.shape[0],:] - xzc[ipt,:] # tangent vector
+                    tvec = xzc[(ipt + 1) % cft.shape[0], :] - xzc[ipt, :] # tangent vector
                     if tvec[0] < 0.:
                         tvec = -tvec # tangent always positive pointing downstream (does not work near stagnation)
                     cfe[ipt] = 0.5 * (cf[(ipt + 1) % cft.shape[0], :] + cf[ipt, :]).dot(tvec / np.linalg.norm(tvec))
