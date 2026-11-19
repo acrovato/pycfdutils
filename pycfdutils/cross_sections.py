@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
 # pyCFDutils
-# Copyright 2020 Adrien Crovato
+# Copyright (C) 2020 Adrien Crovato
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import numpy as np
 
@@ -21,6 +20,10 @@ class CrossSections:
     """Manage cross-sectional data along the wing span
 
     Attributes:
+    name: string
+        dataset name
+    aoa: float
+        angle of attack
     y_sec: array
         y-coordinate of cross-sections
     chords: array
@@ -31,6 +34,8 @@ class CrossSections:
         x and z-coordinates of cross-sections normalized by chord
     cp: array
         pressure coefficients along the chord of cross-sections
+    cp: array
+        tangential friction coefficients along the chord of cross-sections
     cl: array
         spanwise lift distribution
     cm: array
@@ -38,7 +43,10 @@ class CrossSections:
     cd: array
         spanwise drag distribution
     """
-    def __init__(self):
+    def __init__(self, name='', aoa=0.):
+        # General
+        self.name = name
+        self.aoa = aoa
         # Geometry
         self.y_sec = []
         self.chords = []
@@ -46,46 +54,71 @@ class CrossSections:
         self.xz_c = []
         # Loads
         self.cp = []
+        self.cf = []
         self.cl = []
         self.cm = []
         self.cd = []
 
-    def add_section(self, y, xz, cp):
+    def add_section(self, y, xz, cp, cf=None):
         """Add cross-sectional data
 
         Parameters:
         y: float
             y-coordinate of cross-section
-        xz: ndarray
+        xz: ndarray (n, 2)
             x and z-coordinates of cross-section
-        cp: array
+        cp: ndarray (n, 1)
             pressure coefficients along the chord of cross-section
+        cf: ndarray (n, 2), optional
+            x and z friction coefficients along the chord of cross-section
         """
+        # Rotate arrays so they start at the trailing edge
+        ite = np.argmax(xz[:, 0]) # LE index
+        xz = np.roll(xz, -ite, axis=0)
+        cp = np.roll(cp, -ite)
+        if cf is not None:
+            cf = np.roll(cf, -ite)
         # Normalize coordinates
         ile = np.argmin(xz[:, 0]) # LE index
-        c = max(xz[:, 0]) - min(xz[:, 0]) # chord length
+        c = xz[0, 0] - xz[ile, 0] # chord length
         xzc = np.zeros((xz.shape[0], 2))
-        xzc[:,0] = (xz[:,0] - xz[ile,0]) / c
-        xzc[:,1] = (xz[:,1] - xz[ile,1]) / c
+        xzc[:,0] = (xz[:, 0] - xz[ile, 0]) / c
+        xzc[:,1] = (xz[:, 1] - xz[ile, 1]) / c
+        # Compute tangential friction coefficient
+        cft = np.zeros((len(cp), 1))
+        if cf is not None:
+            if cf.shape[1] == 1:
+                cft = cf
+            elif cf.shape[1] == 2:
+                # Compute at element center
+                cfe = np.zeros(cft.shape[0])
+                for ipt in range(cft.shape[0]):
+                    tvec = xzc[(ipt + 1) % cft.shape[0], :] - xzc[ipt, :] # tangent vector
+                    if tvec[0] < 0.:
+                        tvec = -tvec # tangent always positive pointing downstream (does not work near stagnation)
+                    cfe[ipt] = 0.5 * (cf[(ipt + 1) % cft.shape[0], :] + cf[ipt, :]).dot(tvec / np.linalg.norm(tvec))
+                # Interpolate at point
+                for ipt in range(cft.shape[0]):
+                    cft[ipt] = 0.5 * (cfe[ipt - 1] + cfe[ipt])
+            else:
+                raise RuntimeError(f'CrossSections.add_section: error while computing tangential skin friction coefficient. Expecting friction array with 1 or 2 columns but {cf.shape[1]} were given.')
         # Add data
         self.y_sec.append(y)
         self.chords.append(c)
         self.xz_le.append(xz[ile, :])
         self.xz_c.append(xzc)
         self.cp.append(cp)
+        self.cf.append(cft)
 
-    def compute_loads(self, aoa=0):
+    def compute_loads(self):
         """Compute sectional aerodynamic load coefficients
-
-        Parameters:
-        aoa: float
-            angle of attack in degrees (default: 0.)
         """
-        aoa = np.deg2rad(aoa)
+        aoa = np.deg2rad(self.aoa)
         for i in range(len(self.y_sec)):
             xc = self.xz_c[i][:, 0]
             zc = self.xz_c[i][:, 1]
             cp = self.cp[i][:, 0]
+            cf = self.cf[i][:, 0]
             # Integrate pressure coefficient
             cz = 0
             cx = 0
@@ -124,6 +157,15 @@ class CrossSections:
             ax.plot(self.xz_c[i][:, 0], self.cp[i], label = f'y = {self.y_sec[i]}')
         ax.legend()
         plt.draw()
+        # Friction
+        if np.any(self.cf[0] != 0.):
+            fig, ax = plt.subplots()
+            ax.set_xlabel('$x/c$')
+            ax.set_ylabel('$c_f$')
+            for i in range(len(self.y_sec)):
+                ax.plot(self.xz_c[i][:, 0], self.cf[i], label = f'y = {self.y_sec[i]}')
+            ax.legend()
+            plt.draw()
         # Loads
         fig, ax1 = plt.subplots()
         # left axis
@@ -144,15 +186,16 @@ class CrossSections:
     def write(self):
         """Write to disk
         """
-        # Pressure
+        name = self.name + '_' if self.name else ''
+        # Pressure and friction
         for i in range(len(self.y_sec)):
-            print(f'Writing pressure data file in workspace directory: slice_{i}.dat')
+            print(f'Writing pressure data file in workspace directory: {name}slice_{i}.dat')
             hdr = f'y = {self.y_sec[i]}, c = {self.chords[i]}, le = {self.xz_le[i]}\n'
-            hdr += '{:>9s}, {:>10s}, {:>10s}'.format('x/c', 'z/c', 'cp')
-            data = np.hstack((self.xz_c[i], self.cp[i]))
-            np.savetxt(f'slice_{i}.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
+            hdr += '{:>9s}, {:>10s}, {:>10s}, {:>10s}'.format('x/c', 'z/c', 'cp', 'cf')
+            data = np.hstack((self.xz_c[i], self.cp[i], self.cf[i]))
+            np.savetxt(f'{name}slice_{i}.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
         # Loads
         hdr = '{:>9s}, {:>10s}, {:>10s}, {:>10s}'.format('y', 'cl', 'cm', 'cd')
         data = np.transpose(np.vstack((self.y_sec, self.cl, self.cm, self.cd)))
         print('Writing loads data file in workspace directory: loads.dat...')
-        np.savetxt('loads.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)
+        np.savetxt(f'{name}loads.dat', data, fmt='%+1.4e', delimiter=',', header=hdr)

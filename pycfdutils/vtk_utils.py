@@ -1,19 +1,18 @@
 # -*- coding: utf-8 -*-
 
 # pyCFDutils
-# Copyright 2020 Adrien Crovato
+# Copyright (C) 2020 Adrien Crovato
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 try:
     import vtk
@@ -82,7 +81,7 @@ class Cutter:
         self.grid = grid
         self.slice = None
 
-    def cut(self, cut_orig, cut_norm, tag_name=None, tag_id=None):
+    def cut(self, cut_orig, cut_norm, tag_name=None, tag_lid=None, tag_uid=None, to_points=True):
         """Create a cutplane on the grid or on a subset of it
 
         Parameters:
@@ -92,14 +91,18 @@ class Cutter:
             components of vector normal to cutplane
         tag_name: str
             name of variable to create threshold on (default: None)
-        tag_id: int
-            ID number to threshold (default: None)
+        tag_lid: int
+            lower ID number to threshold (default: None)
+        tag_uid: int
+            upper ID number to threshold (default: None)
+        to_points: bool
+            whether cell data must be interpolated at points or not (default: True)
         """
         # Create a threshold containing the physical group to cut
         if tag_name:
             thresh = vtk.vtkThreshold()
-            thresh.SetLowerThreshold(tag_id)
-            thresh.SetUpperThreshold(tag_id)
+            thresh.SetLowerThreshold(tag_lid)
+            thresh.SetUpperThreshold(tag_uid)
             thresh.SetInputDataObject(self.grid)
             thresh.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_CELLS, tag_name)
             thresh.Update()
@@ -110,14 +113,20 @@ class Cutter:
         # Cut the threshold or the grid and get data
         cutter = vtk.vtkCutter()
         cutter.SetCutFunction(plane)
-        if tag_id:
+        if tag_name:
             cutter.SetInputDataObject(thresh.GetOutput())
         else:
             cutter.SetInputDataObject(self.grid)
         cutter.Update()
         self.slice = cutter.GetOutput()
+        # Interpolate data at points
+        if to_points and self.slice.GetCellData().GetNumberOfArrays() > 0:
+            xfer = vtk.vtkCellDataToPointData()
+            xfer.SetInputData(self.slice)
+            xfer.Update()
+            self.slice = xfer.GetOutput()
 
-    def extract(self, var_names, tag_dim, at_point=True, sort=True):
+    def extract(self, var_names, tag_dim, sort=True):
         """Extract points, connectivity list and data from cutting plane
 
         Parameters:
@@ -125,8 +134,6 @@ class Cutter:
             array of names of data to extract
         tag_dim: int
             dimension of cutted entity
-        at_point: bool
-            whether data are defined at points (True) or at cells (default: True)
         sort: bool
             whether data must be sorted or not (default: True)
         """
@@ -152,20 +159,14 @@ class Cutter:
         # Transfer variables
         vals = {}
         for name in var_names:
-            if at_point: # data at points
-                _vals = self.slice.GetPointData().GetArray(name)
-            else: # data at elements
-                _vals = self.slice.GetCellData().GetArray(name)
+            _vals = self.slice.GetPointData().GetArray(name)
             vals[name] = np.zeros((_vals.GetNumberOfTuples(), _vals.GetNumberOfComponents()))
             for i in range(0, vals[name].shape[0]):
                 for j in range(0, vals[name].shape[1]):
                     vals[name][i,j] = _vals.GetTuple(i)[j]
-        # sort the data
+        # Sort the data
         if sort:
-            if not at_point:
-                print('Sorting method not implemented for data defined at cell. Skipping sort!\n')
-            else:
-               pts, elems, vals = self.__sort(pts, elems, vals)
+            pts, elems, vals = self.__sort(pts, elems, vals)
         return pts, elems, vals
 
     def __sort(self, pts, elems, vals):
